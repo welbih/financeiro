@@ -1,0 +1,4 @@
+.categoryHeading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.categoryEditor { padding: 16px; border: 1px solid #dce2e7; border-radius: 9px; background: #f8faf9; display: grid; gap: 12px; }
+.categoryEditor p { margin: 0; }
+.categoryActions { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
