@@ -41,6 +41,11 @@ Ao clicar no nome ou na inicial, o menu oferece Sair. A saída usa
 POST `/auth/logout` com Bearer Token, remove o cookie local e retorna ao login.
 Se a API falhar, a sessão é mantida para permitir tentar novamente; tokens
 já expirados ou revogados (HTTP 401) encerram a sessão local normalmente.
+A opção Alterar senha, acima de Sair, abre uma modal com senha atual, nova
+senha e confirmação. Usa PUT `/usuarios/senha` com Bearer Token e somente
+`senhaAtual` e `novaSenha` no JSON. A nova senha exige pelo menos 12 caracteres
+e no máximo 72 bytes UTF-8. O sucesso limpa os campos e mantém a sessão,
+conforme o comportamento da API. Nenhuma senha é registrada em logs.
 O CRUD de categorias usa GET/POST `/categorias` e PUT/DELETE `/categorias/{id}`,
 com nome de até 100 caracteres e tipo Receita ou Despesa. A API controla nomes
 duplicados e impede excluir ou alterar o tipo de categorias em uso.

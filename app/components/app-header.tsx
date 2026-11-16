@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { logout } from "../actions/logout";
+import ChangePasswordDialog, { type ChangePasswordHandle } from "./change-password-dialog";
+import styles from "./app-header.module.css";
 
 export default function AppHeader({ fullName }: { fullName: string }) {
   const pathname = usePathname();
@@ -11,6 +13,7 @@ export default function AppHeader({ fullName }: { fullName: string }) {
   const [state, formAction, pending] = useActionState(logout, { error: "" });
   const userMenu = useRef<HTMLDivElement>(null);
   const userButton = useRef<HTMLButtonElement>(null);
+  const passwordDialog = useRef<ChangePasswordHandle>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -37,7 +40,8 @@ export default function AppHeader({ fullName }: { fullName: string }) {
       <button type="button" className="app-user-trigger" ref={userButton} aria-expanded={open} aria-controls="user-menu" onClick={() => setOpen(value => !value)}>
         <span className="app-avatar" aria-hidden="true">{fullName.charAt(0).toUpperCase()}</span><span className="app-user-info"><span className="app-user-label">Usuário autenticado</span><span className="app-user-name">{fullName}</span></span><span className="app-user-chevron" aria-hidden="true">⌄</span>
       </button>
-      {open && <div id="user-menu" className="app-user-dropdown"><form action={formAction} aria-busy={pending}><button type="submit" className="app-logout-button" disabled={pending}>{pending ? "Saindo..." : "Sair"}</button>{state.error && <p className="login-error" role="alert">{state.error}</p>}</form></div>}
+      {open && <div id="user-menu" className="app-user-dropdown"><button type="button" className={styles.userAction} disabled={pending} onClick={() => { setOpen(false); passwordDialog.current?.open(); }}>Alterar senha</button><form action={formAction} aria-busy={pending}><button type="submit" className="app-logout-button" disabled={pending}>{pending ? "Saindo..." : "Sair"}</button>{state.error && <p className="login-error" role="alert">{state.error}</p>}</form></div>}
     </div>
+    <ChangePasswordDialog ref={passwordDialog} />
   </div></header>;
 }
