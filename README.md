@@ -41,6 +41,11 @@ Ao clicar no nome ou na inicial, o menu oferece Sair. A saída usa
 POST `/auth/logout` com Bearer Token, remove o cookie local e retorna ao login.
 Se a API falhar, a sessão é mantida para permitir tentar novamente; tokens
 já expirados ou revogados (HTTP 401) encerram a sessão local normalmente.
+A opção Alterar senha, acima de Sair, abre uma modal com senha atual, nova
+senha e confirmação. Usa PUT `/usuarios/senha` com Bearer Token e somente
+`senhaAtual` e `novaSenha` no JSON. A nova senha exige pelo menos 12 caracteres
+e no máximo 72 bytes UTF-8. O sucesso limpa os campos e mantém a sessão,
+conforme o comportamento da API. Nenhuma senha é registrada em logs.
 O CRUD de categorias usa GET/POST `/categorias` e PUT/DELETE `/categorias/{id}`,
 com nome de até 100 caracteres e tipo Receita ou Despesa. A API controla nomes
 duplicados e impede excluir ou alterar o tipo de categorias em uso.
@@ -99,3 +104,16 @@ data de pagamento. Na edição o campo não é enviado; cada registro é indepen
 - `app/components/`: cabeçalho, navegação e layout das telas autenticadas.
 - `app/layout.tsx`: layout principal e metadados.
 - `app/globals.css`: estilos globais e configuração do Tailwind CSS.
+
+## Usuários (administração)
+
+O menu Usuários aparece à direita de Configuração do planejamento apenas para
+sessões com `ROLE_ADMIN` no claim `authorities`. A rota `/usuarios` lista nome,
+sobrenome, email, perfis e situação, com paginação em GET `/usuarios`.
+A API valida o token e a permissão em todas as consultas. Acesso sem sessão
+retorna ao login; sem perfil administrador ou HTTP 403 retorna à situação
+financeira. O token e senhas não são enviados como propriedades ao navegador.
+A coluna Ações permite ativar usuários inativos e desativar usuários ativos,
+com confirmação e atualização da página atual da listagem. As operações usam
+PATCH `/usuarios/{id}/ativar` e `/usuarios/{id}/inativar`, sem corpo, com a mesma
+verificação de administrador. A desativação da própria conta é bloqueada no botão e na ação do servidor.

@@ -1,0 +1,7 @@
+.notice { background: #fff7df; border-bottom: 1px solid #edcf7d; color: #744b0d; }
+.content { max-width: 1464px; padding: 14px 32px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 20px; font-size: 14px; line-height: 1.5; }
+.content p { margin: 0; font-weight: 600; }
+.countdown { display: block; margin-top: 3px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.content a { flex-shrink: 0; color: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.expired { color: #912018; background: #fff0ed; border-color: #f0b8ad; }
+@media (max-width: 700px) { .content { padding: 14px 16px; align-items: flex-start; flex-direction: column; gap: 8px; } }
