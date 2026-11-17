@@ -104,3 +104,16 @@ data de pagamento. Na edição o campo não é enviado; cada registro é indepen
 - `app/components/`: cabeçalho, navegação e layout das telas autenticadas.
 - `app/layout.tsx`: layout principal e metadados.
 - `app/globals.css`: estilos globais e configuração do Tailwind CSS.
+
+## Usuários (administração)
+
+O menu Usuários aparece à direita de Configuração do planejamento apenas para
+sessões com `ROLE_ADMIN` no claim `authorities`. A rota `/usuarios` lista nome,
+sobrenome, email, perfis e situação, com paginação em GET `/usuarios`.
+A API valida o token e a permissão em todas as consultas. Acesso sem sessão
+retorna ao login; sem perfil administrador ou HTTP 403 retorna à situação
+financeira. O token e senhas não são enviados como propriedades ao navegador.
+A coluna Ações permite ativar usuários inativos e desativar usuários ativos,
+com confirmação e atualização da página atual da listagem. As operações usam
+PATCH `/usuarios/{id}/ativar` e `/usuarios/{id}/inativar`, sem corpo, com a mesma
+verificação de administrador. A desativação da própria conta é bloqueada no botão e na ação do servidor.
