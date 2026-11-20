@@ -1,5 +1,3 @@
-import { shiftMonth } from "../lancamentos/month";
-import type { Planejamento } from "./types";
 
 export { getToday, validDate } from "../lib/dates";
 import { validDate } from "../lib/dates";
@@ -17,18 +15,6 @@ export function validStart(date: string, day: number) {
   previous.setUTCDate(previous.getUTCDate() - 1);
   const value = previous.toISOString().slice(0, 10);
   return value === closingDate(value.slice(0, 7), day);
-}
-
-export function firstCycle(config: Planejamento) {
-  const month = config.dataInicioControle.slice(0, 7);
-  return config.dataInicioControle <= closingDate(month, config.diaFechamento) ? month : shiftMonth(month, 1);
-}
-
-export function currentCycle(config: Planejamento, today: string) {
-  const month = today.slice(0, 7);
-  const cycle = today <= closingDate(month, config.diaFechamento) ? month : shiftMonth(month, 1);
-  const first = firstCycle(config);
-  return cycle < first ? first : cycle;
 }
 
 export function maskBalance(value: string) {

@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { connection } from "next/server";
 import { buscarPlanejamento, resumirPlanejamento } from "./actions";
-import { currentCycle, getToday } from "./helpers";
+import { getToday } from "./helpers";
 import PlanejamentoView from "./view";
 import { carregarOpcoesCategorias } from "../categorias/actions";
 
@@ -11,7 +11,7 @@ async function Conteudo() {
   await connection();
   const today = getToday();
   const [config, categorias] = await Promise.all([buscarPlanejamento(), carregarOpcoesCategorias()]);
-  const month = config.data ? currentCycle(config.data, today) : today.slice(0, 7);
+  const month = config.data?.cicloAtual ?? today.slice(0, 7);
   const resumo = config.data ? await resumirPlanejamento(month) : {};
   return <PlanejamentoView initialConfig={config} initialResumo={resumo} initialMonth={month} today={today} categorias={categorias} />;
 }
