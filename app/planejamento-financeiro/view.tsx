@@ -3,14 +3,14 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { buscarPlanejamento, resumirPlanejamento } from "./actions";
-import { currentCycle, firstCycle, getToday } from "./helpers";
+import { getToday } from "./helpers";
 import { isValidMonth, monthLabel, shiftMonth } from "../lancamentos/month";
 import type { ConfigResult, ResumoResult } from "./types";
 import styles from "./planning.module.css";
 import monthly from "../lancamentos/monthly-summary.module.css";
 import LancamentoDialog, { type LancamentoDialogHandle } from "../lancamentos/entry-dialog";
 import type { CategoriaOptions } from "../categorias/types";
-import { pagarLancamento } from "../lancamentos/actions";
+import { excluirLancamento, pagarLancamento } from "../lancamentos/actions";
 import type { Lancamento } from "../lancamentos/types";
 import { balanceColor } from "../lancamentos/balance-color";
 
@@ -35,13 +35,16 @@ export default function PlanejamentoView({ initialConfig, initialResumo, initial
   const [paymentDate, setPaymentDate] = useState("");
   const [paymentMaxDate, setPaymentMaxDate] = useState(today);
   const paymentDialog = useRef<HTMLDialogElement>(null);
+  const deleteDialog = useRef<HTMLDialogElement>(null);
+  const [deleting, setDeleting] = useState<Lancamento | null>(null);
+  const [deleteError, setDeleteError] = useState("");
   const entryDialog = useRef<LancamentoDialogHandle>(null);
   const receivedSummary = useRef(initialResumo);
   const summary = result.data;
   const achievement = Boolean(summary && summary.totalReceitas > 0 && summary.saldoFinalProjetado >= summary.totalReceitas);
   const balancePercentage = summary && summary.totalReceitas > 0 ? summary.saldoFinalProjetado / summary.totalReceitas : null;
-  const first = config.data ? firstCycle(config.data) : "";
-  const activeCycle = config.data ? currentCycle(config.data, today) : initialMonth;
+  const first = config.data?.primeiroCicloDisponivel ?? "";
+  const activeCycle = config.data?.cicloAtual ?? initialMonth;
   const cycleBusy = busy || loadingMonth;
 
   useEffect(() => {
@@ -50,7 +53,7 @@ export default function PlanejamentoView({ initialConfig, initialResumo, initial
     let canceled = false;
     async function synchronize() {
       try {
-        const selected = month < firstCycle(config.data!) ? currentCycle(config.data!, today) : month;
+        const selected = month < config.data!.primeiroCicloDisponivel ? config.data!.cicloAtual : month;
         const next = await resumirPlanejamento(selected);
         if (!canceled) { setMonth(selected); setResult(next); }
       } catch {
@@ -86,7 +89,7 @@ export default function PlanejamentoView({ initialConfig, initialResumo, initial
     try {
       const next = await buscarPlanejamento(); setConfigOverride({ source: initialConfig, value: next });
       if (next.data) {
-        const selected = currentCycle(next.data, today); setMonth(selected);
+        const selected = next.data.cicloAtual; setMonth(selected);
         setResult(await resumirPlanejamento(selected));
       }
     } catch { setConfigOverride({ source: initialConfig, value: { error: "Não foi possível carregar a configuração." } }); }
@@ -116,6 +119,19 @@ export default function PlanejamentoView({ initialConfig, initialResumo, initial
     finally { setBusy(false); }
   }
 
+  async function remove() {
+    if (cycleBusy || !deleting) return;
+    setBusy(true); setDeleteError(""); setNotice("");
+    try {
+      const response = await excluirLancamento(deleting.id);
+      if (response.error) { setDeleteError(response.error); return; }
+      deleteDialog.current?.close(); setNotice("Lançamento excluído.");
+      try { setResult(await resumirPlanejamento(month)); }
+      catch { setResult({ error: "Lançamento excluído, mas não foi possível atualizar o ciclo. Tente novamente." }); }
+    } catch { setDeleteError("Não foi possível excluir. Tente novamente."); }
+    finally { setBusy(false); }
+  }
+
   return <div className="entries-container">
     <header className="entries-header"><div><h1>Situação financeira</h1><p className="entries-description">Análise sua situação, seus ciclos e acompanhe o saldo projetado ao longo dos meses.</p></div><div className={styles.headerActions}><Link className={`secondary-button ${styles.link}`} href="/lancamentos">Ver lançamentos</Link><button type="button" className="primary-button" disabled={busy} onClick={() => { setNotice(""); entryDialog.current?.open(); }}>+ Adicionar lançamento</button></div></header>
     {config.error && <div className="entries-alert" role="alert">{config.error} <button className="text-button" disabled={busy} onClick={retryConfig}>Tentar novamente</button></div>}
@@ -141,9 +157,15 @@ export default function PlanejamentoView({ initialConfig, initialResumo, initial
           </article>
         </section>
         <div className={styles.cycleResult}><strong>Resultado do ciclo: {money.format(summary.resultadoCiclo)}</strong><p>Receitas menos despesas. As projeções incluem lançamentos pagos e pendentes e não representam saldo bancário confirmado.</p></div>
+        <section className={`entries-table-card ${styles.categoryTotals}`} aria-labelledby="category-totals-title" aria-busy={cycleBusy}>
+          <div className={styles.categoryHeading}><h2 id="category-totals-title">Totais por categoria</h2><p>Receitas e despesas dos lançamentos deste ciclo, pagos e pendentes.</p></div>
+          <div className="entries-table-scroll"><table><thead><tr><th scope="col">Categoria</th><th scope="col">Tipo</th><th scope="col">Total</th></tr></thead><tbody>
+            {summary.totaisPorCategoria.length === 0 ? <tr><td className="empty-entries" colSpan={3}>Nenhum lançamento por categoria neste ciclo.</td></tr> : summary.totaisPorCategoria.map(item => <tr key={`${item.categoriaId ?? "sem-categoria"}-${item.tipoLancamento}`}><td className="entry-description">{item.categoriaNome}</td><td><span className={`entry-type ${item.tipoLancamento.toLowerCase()}`}>{item.tipoLancamento === "RECEITA" ? "Receita" : "Despesa"}</span></td><td className="entry-money">{money.format(item.total)}</td></tr>)}
+          </tbody></table></div>
+        </section>
         <section className="entries-table-card" aria-label="Lançamentos do ciclo" aria-busy={cycleBusy}>
           <div className="entries-table-scroll"><table><thead><tr><th>Descrição</th><th>Tipo</th><th>Valor</th><th>Vencimento</th><th>Previsão de pagamento</th><th>Situação</th><th>Ações</th></tr></thead><tbody>
-            {summary.lancamentos.length === 0 ? <tr><td className="empty-entries" colSpan={7}>Nenhum lançamento neste ciclo.</td></tr> : summary.lancamentos.map(item => <tr key={item.id}><td className="entry-description">{item.descricao}</td><td><span className={`entry-type ${item.tipoLancamento.toLowerCase()}`}>{item.tipoLancamento === "RECEITA" ? "Receita" : "Despesa"}</span></td><td className="entry-money">{money.format(item.valor)}</td><td>{date(item.dataVencimento)}</td><td>{date(item.dataPrevisaoPagamento)}</td><td><span className={item.pago ? "status-paid" : "status-pending"}>{item.pago ? item.tipoLancamento === "RECEITA" ? "Recebida" : "Paga" : "Pendente"}</span></td><td>{!item.pago ? <button type="button" className={styles.payButton} disabled={cycleBusy} aria-label={`${item.tipoLancamento === "RECEITA" ? "Receber" : "Pagar"} ${item.descricao}`} onClick={() => openPayment(item)}>{item.tipoLancamento === "RECEITA" ? "Receber" : "Pagar"}</button> : "—"}</td></tr>)}
+            {summary.lancamentos.length === 0 ? <tr><td className="empty-entries" colSpan={7}>Nenhum lançamento neste ciclo.</td></tr> : summary.lancamentos.map(item => <tr key={item.id}><td className="entry-description">{item.descricao}</td><td><span className={`entry-type ${item.tipoLancamento.toLowerCase()}`}>{item.tipoLancamento === "RECEITA" ? "Receita" : "Despesa"}</span></td><td className="entry-money">{money.format(item.valor)}</td><td>{date(item.dataVencimento)}</td><td>{date(item.dataPrevisaoPagamento)}</td><td><span className={item.pago ? "status-paid" : "status-pending"}>{item.pago ? item.tipoLancamento === "RECEITA" ? "Recebida" : "Paga" : "Pendente"}</span></td><td><div className={styles.rowActions}>{!item.pago && <button type="button" className={styles.payButton} disabled={cycleBusy} aria-label={`${item.tipoLancamento === "RECEITA" ? "Receber" : "Pagar"} ${item.descricao}`} onClick={() => openPayment(item)}>{item.tipoLancamento === "RECEITA" ? "Receber" : "Pagar"}</button>}<button type="button" className={styles.payButton} disabled={cycleBusy} aria-label={`Editar ${item.descricao}`} onClick={() => { setNotice(""); entryDialog.current?.open(item); }}>Editar</button><button type="button" className={`${styles.payButton} ${styles.removeButton}`} disabled={cycleBusy} aria-label={`Excluir ${item.descricao}`} onClick={() => { setDeleting(item); setDeleteError(""); setNotice(""); deleteDialog.current?.showModal(); }}>Excluir</button></div></td></tr>)}
           </tbody></table></div><footer className="entries-pagination">{summary.lancamentos.length} lançamento(s) · {date(summary.dataInicial)} a {date(summary.dataFinal)}</footer>
         </section>
       </>}
@@ -151,16 +173,21 @@ export default function PlanejamentoView({ initialConfig, initialResumo, initial
     <LancamentoDialog ref={entryDialog} categorias={categorias} onBusyChange={value => {
       if (value) { cycleRequest.current += 1; setLoadingMonth(false); setRetryMonth(null); }
       setBusy(value);
-    }} onSaved={async input => {
+    }} onSaved={async (input, wasEditing) => {
       const effectiveDate = input.dataPrevisaoPagamento || input.dataVencimento;
       const outsideCycle = summary && (effectiveDate < summary.dataInicial || effectiveDate > summary.dataFinal);
-      const addedMessage = input.quantidadeRecorrencias ? `${input.quantidadeRecorrencias + 1} lançamentos adicionados, incluindo as recorrências mensais.` : "Lançamento adicionado.";
-      setNotice(`${addedMessage}${outsideCycle ? " O lançamento inicial está fora do ciclo selecionado." : ""} Os saldos projetados foram atualizados.`);
+      const addedMessage = wasEditing ? "Lançamento atualizado." : input.quantidadeRecorrencias ? `${input.quantidadeRecorrencias + 1} lançamentos adicionados, incluindo as recorrências mensais.` : "Lançamento adicionado.";
+      setNotice(`${addedMessage}${outsideCycle ? " O lançamento está fora do ciclo selecionado." : ""} Os saldos projetados foram atualizados.`);
       if (config.data) {
         try { setResult(await resumirPlanejamento(month)); }
         catch { setResult({ error: "Lançamento salvo, mas não foi possível atualizar o ciclo. Tente novamente." }); }
       }
     }} />
+    <dialog ref={deleteDialog} className="entry-dialog" aria-labelledby="delete-entry-title" onCancel={event => { if (busy) event.preventDefault(); }}>
+      <h2 id="delete-entry-title">Excluir lançamento?</h2><p className="delete-description">O lançamento “{deleting?.descricao}” será excluído. Essa ação não pode ser desfeita.</p>
+      {deleteError && <p className="login-error" role="alert">{deleteError}</p>}
+      <div className="dialog-actions"><button type="button" className="secondary-button" disabled={busy} onClick={() => deleteDialog.current?.close()}>Cancelar</button><button type="button" className="primary-button delete-button" disabled={busy} onClick={remove}>{busy ? "Excluindo..." : "Excluir lançamento"}</button></div>
+    </dialog>
     <dialog ref={paymentDialog} className="entry-dialog" aria-labelledby="payment-title" onCancel={event => { if (busy) event.preventDefault(); }}>
       <form onSubmit={pay}>
         <h2 id="payment-title">{paymentItem?.tipoLancamento === "RECEITA" ? "Registrar recebimento" : "Registrar pagamento"}</h2>

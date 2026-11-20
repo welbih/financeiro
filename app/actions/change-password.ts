@@ -2,6 +2,7 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { passwordRequirements } from "../lib/password-rules";
 
 export async function alterarSenha(formData: FormData): Promise<{ error?: string; success?: boolean }> {
   const token = (await cookies()).get("financeiro_access_token")?.value;
@@ -10,7 +11,8 @@ export async function alterarSenha(formData: FormData): Promise<{ error?: string
   const novaSenha = String(formData.get("novaSenha") ?? "");
   const confirmacao = String(formData.get("confirmacaoSenha") ?? "");
   if (!senhaAtual.trim() || !novaSenha.trim()) return { error: "Informe a senha atual e a nova senha." };
-  if (novaSenha.length < 12) return { error: "A nova senha deve ter pelo menos 12 caracteres." };
+  const missingRequirement = passwordRequirements(novaSenha).find(requirement => !requirement.valid);
+  if (missingRequirement) return { error: `A nova senha deve atender ao requisito: ${missingRequirement.label.toLowerCase()}.` };
   if (Buffer.byteLength(senhaAtual, "utf8") > 72 || Buffer.byteLength(novaSenha, "utf8") > 72) return { error: "A senha excede o limite permitido. Use uma senha mais curta." };
   if (novaSenha !== confirmacao) return { error: "A confirmação não corresponde à nova senha." };
   if (!process.env.API_URL) return { error: "O serviço ainda não está configurado." };

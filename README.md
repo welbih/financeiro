@@ -43,8 +43,10 @@ Se a API falhar, a sessão é mantida para permitir tentar novamente; tokens
 já expirados ou revogados (HTTP 401) encerram a sessão local normalmente.
 A opção Alterar senha, acima de Sair, abre uma modal com senha atual, nova
 senha e confirmação. Usa PUT `/usuarios/senha` com Bearer Token e somente
-`senhaAtual` e `novaSenha` no JSON. A nova senha exige pelo menos 12 caracteres
-e no máximo 72 bytes UTF-8. O sucesso limpa os campos e mantém a sessão,
+`senhaAtual` e `novaSenha` no JSON. A nova senha exige pelo menos 8 caracteres, letra maiúscula, minúscula, número
+de 0 a 9 e caractere especial, com no máximo 72 bytes UTF-8. O formulário
+mostra os requisitos e a confirmação em tempo real, usando a mesma validação
+da ação do servidor. O sucesso limpa os campos e mantém a sessão,
 conforme o comportamento da API. Nenhuma senha é registrada em logs.
 O CRUD de categorias usa GET/POST `/categorias` e PUT/DELETE `/categorias/{id}`,
 com nome de até 100 caracteres e tipo Receita ou Despesa. A API controla nomes

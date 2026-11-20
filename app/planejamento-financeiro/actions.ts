@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { isValidMonth } from "../lancamentos/month";
 import { validDate, validStart } from "./helpers";
-import type { ConfigResult, Planejamento, ResumoPlanejamento, ResumoResult } from "./types";
+import type { ConfigResult, Planejamento, PlanejamentoResponse, ResumoPlanejamento, ResumoResult } from "./types";
 
 async function request(path = "", input?: Planejamento) {
   const token = (await cookies()).get("financeiro_access_token")?.value;
@@ -45,14 +45,18 @@ function validConfig(input: Planejamento) {
     Math.abs(input.saldoInicial * 100 - Math.round(input.saldoInicial * 100)) < 0.0001;
 }
 
+async function readConfig(response: Response): Promise<ConfigResult> {
+  try {
+    const data: PlanejamentoResponse = await response.json();
+    if (!validConfig(data) || !isValidMonth(data.cicloAtual) || !isValidMonth(data.primeiroCicloDisponivel) || data.cicloAtual < data.primeiroCicloDisponivel) return { error: "A API retornou uma configuração inválida." };
+    return { data: { diaFechamento: data.diaFechamento, dataInicioControle: data.dataInicioControle, saldoInicial: data.saldoInicial, cicloAtual: data.cicloAtual, primeiroCicloDisponivel: data.primeiroCicloDisponivel } };
+  } catch { return { error: "Não foi possível ler a configuração da API." }; }
+}
+
 export async function buscarPlanejamento(): Promise<ConfigResult> {
   const result = await request();
   if (!result.response) return { error: result.error, notConfigured: result.notConfigured };
-  try {
-    const data: Planejamento = await result.response.json();
-    if (!validConfig(data)) return { error: "A API retornou uma configuração inválida." };
-    return { data: { diaFechamento: data.diaFechamento, dataInicioControle: data.dataInicioControle, saldoInicial: data.saldoInicial } };
-  } catch { return { error: "Não foi possível ler a configuração da API." }; }
+  return readConfig(result.response);
 }
 
 export async function salvarPlanejamento(input: Planejamento): Promise<ConfigResult> {
@@ -63,7 +67,7 @@ export async function salvarPlanejamento(input: Planejamento): Promise<ConfigRes
   if (!result.response) return { error: result.error };
   revalidatePath("/planejamento-financeiro");
   revalidatePath("/planejamento-financeiro/configuracao");
-  return { data: payload };
+  return readConfig(result.response);
 }
 
 export async function resumirPlanejamento(mes: string): Promise<ResumoResult> {
@@ -74,6 +78,7 @@ export async function resumirPlanejamento(mes: string): Promise<ResumoResult> {
     const data: ResumoPlanejamento = await result.response.json();
     const fields = ["saldoInicialProjetado", "totalReceitas", "totalDespesas", "receitasRecebidas", "receitasPendentes", "despesasPagas", "despesasPendentes", "resultadoCiclo", "saldoFinalProjetado"] as const;
     if (!data || data.mesFechamento !== mes || !validDate(data.dataInicial) || !validDate(data.dataFinal) || !Array.isArray(data.lancamentos) || fields.some(key => !Number.isFinite(data[key]))) return { error: "A API retornou um resumo de planejamento inválido." };
+    if (!Array.isArray(data.totaisPorCategoria) || data.totaisPorCategoria.some(item => !item || (item.categoriaId !== null && (!Number.isSafeInteger(item.categoriaId) || item.categoriaId <= 0)) || typeof item.categoriaNome !== "string" || !item.categoriaNome.trim() || !["RECEITA", "DESPESA"].includes(item.tipoLancamento) || !Number.isFinite(item.total) || item.total < 0)) return { error: "A API retornou totais por categoria inválidos." };
     return { data };
   } catch { return { error: "Não foi possível ler o resumo da API." }; }
 }
